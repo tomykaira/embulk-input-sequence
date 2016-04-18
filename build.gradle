@@ -75,10 +75,10 @@ Gem::Specification.new do |spec|
   spec.version       = "${project.version}"
   spec.authors       = ["tomykaira"]
   spec.summary       = %[Sequence input plugin for Embulk]
-  spec.description   = %[Loads records from Sequence.]
+  spec.description   = %[Generate sequential number.]
   spec.email         = ["tomykaira@gmail.com"]
   spec.licenses      = ["MIT"]
-  # TODO set this: spec.homepage      = "https://github.com/tomykaira/embulk-input-sequence"
+  spec.homepage      = "https://github.com/tomykaira/embulk-input-sequence"
 
   spec.files         = `git ls-files`.split("\n") + Dir["classpath/*.jar"]
   spec.test_files    = spec.files.grep(%r"^(test|spec)/")

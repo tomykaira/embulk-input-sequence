@@ -1,19 +1,20 @@
 package org.embulk.input.sequence;
 
 import java.util.List;
-import com.google.common.base.Optional;
-import org.embulk.config.TaskReport;
+
 import org.embulk.config.Config;
 import org.embulk.config.ConfigDefault;
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.Task;
+import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.InputPlugin;
+import org.embulk.spi.PageBuilder;
 import org.embulk.spi.PageOutput;
 import org.embulk.spi.Schema;
-import org.embulk.spi.SchemaConfig;
+import org.embulk.spi.type.Types;
 
 public class SequenceInputPlugin
         implements InputPlugin
@@ -21,23 +22,19 @@ public class SequenceInputPlugin
     public interface PluginTask
             extends Task
     {
-        // configuration option 1 (required integer)
-        @Config("option1")
-        public int getOption1();
+        @Config("from")
+        public int getFrom();
 
-        // configuration option 2 (optional string, null is not allowed)
-        @Config("option2")
-        @ConfigDefault("\"myvalue\"")
-        public String getOption2();
+        @Config("to")
+        public int getTo();
 
-        // configuration option 3 (optional string, null is allowed)
-        @Config("option3")
-        @ConfigDefault("null")
-        public Optional<String> getOption3();
+        @Config("step")
+        @ConfigDefault("1")
+        public int getStep();
 
-        // if you get schema from config
-        @Config("columns")
-        public SchemaConfig getColumns();
+        @Config("column_name")
+        @ConfigDefault("\"id\"")
+        public String getColumnName();
     }
 
     @Override
@@ -46,7 +43,11 @@ public class SequenceInputPlugin
     {
         PluginTask task = config.loadConfig(PluginTask.class);
 
-        Schema schema = task.getColumns().toSchema();
+        if (task.getStep() == 0) {
+            throw new RuntimeException("Step must not be 0");
+        }
+
+        Schema schema = new Schema.Builder().add(task.getColumnName(), Types.LONG).build();
         int taskCount = 1;  // number of run() method calls
 
         return resume(task.dump(), schema, taskCount, control);
@@ -57,6 +58,7 @@ public class SequenceInputPlugin
             Schema schema, int taskCount,
             InputPlugin.Control control)
     {
+        // TODO: resume support
         control.run(taskSource, schema, taskCount);
         return Exec.newConfigDiff();
     }
@@ -75,8 +77,27 @@ public class SequenceInputPlugin
     {
         PluginTask task = taskSource.loadTask(PluginTask.class);
 
-        // Write your code here :)
-        throw new UnsupportedOperationException("SequenceInputPlugin.run method is not implemented yet");
+        int from = task.getFrom();
+        int to = task.getTo();
+        int step = task.getStep();
+
+        try (final PageBuilder builder = new PageBuilder(Exec.getBufferAllocator(), schema, output)) {
+            if (step > 0) {
+                for (int i = from; i <= to; i += step) {
+                    builder.setLong(0, i);
+                    builder.addRecord();
+                }
+            } else {
+                for (int i = from; i >= to; i += step) {
+                    builder.setLong(0, i);
+                    builder.addRecord();
+                }
+            }
+
+            builder.finish();
+        }
+
+        return Exec.newTaskReport();
     }
 
     @Override
